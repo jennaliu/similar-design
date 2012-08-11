@@ -45,13 +45,13 @@
 
  FrameCapture::FrameCapture(): QObject(), m_percent(0)
  {
-     connect(&m_page, SIGNAL(loadProgress(int)), this, SLOT(printProgress(int)));
+     //connect(&m_page, SIGNAL(loadProgress(int)), this, SLOT(printProgress(int)));
      connect(&m_page, SIGNAL(loadFinished(bool)), this, SLOT(saveResult(bool)));
  }
 
  void FrameCapture::load(const QUrl &url, const QString &outputFileName)
  {
-     std::cout << "Loading " << qPrintable(url.toString()) << std::endl;
+     //std::cout << "Loading " << qPrintable(url.toString()) << std::endl;
      m_percent = 0;
      int index = outputFileName.lastIndexOf('.');
      m_fileName = (index == -1) ? outputFileName + ".png" : outputFileName;
@@ -72,7 +72,7 @@
 
  void FrameCapture::saveResult(bool ok)
  {
-     std::cout << std::endl;
+     //std::cout << std::endl;
 
      // crude error-checking
      if (!ok) {

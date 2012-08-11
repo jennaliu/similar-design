@@ -8,7 +8,7 @@ DEPENDPATH += . qmlapplicationviewer
 INCLUDEPATH += . qmlapplicationviewer
 
 # Input
-HEADERS += framecapture.h qmlapplicationviewer/qmlapplicationviewer.h
+HEADERS += framecapture.h
 SOURCES += framecapture.cpp \
-           main.cpp \
-           qmlapplicationviewer/qmlapplicationviewer.cpp
+           main.cpp
+QT += webkit

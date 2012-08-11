@@ -3,13 +3,22 @@ import csv
 import subprocess, threading
 from Queue import Queue
 import cProfile
+import time
+import os
+import signal
 
+# Globals
+finished_url_entry_count = 0
+
+# Thread for convert a url to an image
 class WebCapture(threading.Thread):
-    def __init__(self, url, filename, output_folder):
+    def __init__(self, thread_name, url, filename, output_folder):
         self.url = url
         self.filename = filename
         self.output_folder = output_folder
         self.process = None
+        self.start_time = 0
+        self.thread_name = thread_name
         threading.Thread.__init__(self)
     def run(self):
         cmd = './webcapture ' + self.url + " " + self.output_folder + self.filename
@@ -17,39 +26,49 @@ class WebCapture(threading.Thread):
         self.process = subprocess.Popen(cmd, shell=True)
         self.process.communicate()
 
-def urls_to_images(url_entries, output_folder):
-    def producer(q, url_entries, output_folder):
-        for url_entry in url_entries:
-            thread = WebCapture(url_entry["url"], url_entry["filename"], output_folder)
-            thread.start()
-            q.put(thread, True)
-    finished = []
-    def consumer(q, url_entries, url_entries_len):
-        while len(finished) < url_entries_len:
-            thread = q.get(True)
-            thread.join(30)
-            if thread.is_alive():
-                print 'Terminating process'
-                thread.process.terminate()
-                thread.join()
-            finished.append(thread.url)
-    q = Queue(20)
-    prod_thread = threading.Thread(target=producer, args=(q, url_entries, output_folder))
-    cons_thread = threading.Thread(target=consumer, args=(q, url_entries, len(url_entries)))
-    prod_thread.start()
-    cons_thread.start()
-    prod_thread.join()
-    cons_thread.join()
-
 def get_urls(start, url_entries_file):
-    url_entries = []
+    url_entry_queue = Queue()
     i = 1
     url_entries_reader = csv.reader(open(url_entries_file, 'rb'), delimiter=',', quotechar='|')
     for row in url_entries_reader:
-        if i >= start and i <= 2020:
-            url_entries.append({"url": row[1], "filename": row[0] + ".png"})
+        if i >= start:
+            url_entry_queue.put({"url": row[1], "filename": row[0] + ".png"})
         i += 1
-    return url_entries
+    return url_entry_queue
 
-url_entries = get_urls(2000, "../data/top-1m.csv")
-cProfile.run('urls_to_images(url_entries, "../images/")') #keep "/" at the end of the folder path
+def feed(threads, url_entry_queue, total_url_entry_count):
+    global finished_url_entry_count
+    while finished_url_entry_count < total_url_entry_count:
+        for i in range(8):
+            if threads[i].isAlive() and time.time()-threads[i].start_time > 30:
+                    try:
+                        if(threads[i].process):
+                            threads[i].process.terminate()
+                        else:
+                            print "Process is none"
+                    except OSError:
+                        print "Fail to stop process " + str(threads[i].process.pid)
+            if not threads[i].isAlive():
+                #print str(threads[i].process) + "finished"
+                url_entry = url_entry_queue.get()
+                threads[i] = WebCapture(threads[i].thread_name, url_entry["url"], url_entry["filename"], output_folder)
+                threads[i].start()
+                threads[i].start_time = time.time()
+                finished_url_entry_count += 1
+
+url_entry_queue = get_urls(17680, "../data/top-1m.csv")
+total_url_entry_count = url_entry_queue.qsize()
+output_folder = "../images/"
+threads = []
+
+# Initialize threads
+for i in range(8):
+    url_entry = url_entry_queue.get()
+    thread = WebCapture("Thread-" + str(i), url_entry["url"], url_entry["filename"], output_folder)
+    thread.start()
+    thread.start_time = time.time()
+    threads.append(thread)
+                
+feed_thread = threading.Thread(target=feed, args=(threads, url_entry_queue, total_url_entry_count))
+feed_thread.start()
+feed_thread.join()
